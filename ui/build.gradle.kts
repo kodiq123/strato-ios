@@ -25,6 +25,8 @@ kotlin {
         target.binaries.framework {
             baseName = "TeleDriveKit"
             isStatic = true
+            // Swift implements TdJsonTransport (declared in :shared), so it must be visible.
+            export(project(":shared"))
         }
     }
 

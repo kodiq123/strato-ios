@@ -3,9 +3,12 @@ import TeleDriveKit
 
 @main
 struct TeleDriveApp: App {
+    /// One bridge for the app's lifetime: TDLib clients and the receive loop live behind it.
+    private let tdlib = TdJsonBridge()
+
     var body: some Scene {
         WindowGroup {
-            ComposeView()
+            ComposeView(transport: tdlib)
                 .ignoresSafeArea()
         }
     }
@@ -13,8 +16,10 @@ struct TeleDriveApp: App {
 
 /// Hosts the Compose Multiplatform UI exported by the Kotlin framework.
 struct ComposeView: UIViewControllerRepresentable {
+    let transport: TdJsonTransport
+
     func makeUIViewController(context: Context) -> UIViewController {
-        MainViewControllerKt.MainViewController()
+        MainViewControllerKt.MainViewController(transport: transport)
     }
 
     func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}

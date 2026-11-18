@@ -21,6 +21,11 @@ targets:
     platform: iOS
     sources:
       - path: TeleDrive
+    dependencies:
+      # Static TDLib (td_json_client), fetched by .github/workflows/ios.yml or
+      # scripts/fetch-tdlib.sh into iosApp/Frameworks/. Static, so it is linked, not embedded.
+      - framework: Frameworks/TDLibFramework.xcframework
+        embed: false
     info:
       path: TeleDrive/Info.plist
       properties:
@@ -52,6 +57,7 @@ targets:
           - "-framework"
           - "TeleDriveKit"
           - "-lc++"
+          - "-lz"
           - "-lsqlite3"
     preBuildScripts:
       - name: Build Kotlin framework

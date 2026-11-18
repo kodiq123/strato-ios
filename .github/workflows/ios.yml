@@ -39,6 +39,15 @@ jobs:
           sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
           xcodebuild -version
 
+      - name: Cache TDLibFramework
+        uses: actions/cache@v4
+        with:
+          path: iosApp/Frameworks
+          key: tdlib-${{ hashFiles('iosApp/scripts/fetch-tdlib.sh') }}
+
+      - name: Fetch TDLibFramework
+        run: bash iosApp/scripts/fetch-tdlib.sh
+
       - name: Generate Xcode project
         working-directory: iosApp
         run: |
