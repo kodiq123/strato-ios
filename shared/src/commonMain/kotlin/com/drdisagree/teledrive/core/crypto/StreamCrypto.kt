@@ -1,29 +1,26 @@
 package com.drdisagree.teledrive.core.crypto
 
-import java.io.EOFException
-import java.io.InputStream
-import java.io.OutputStream
-import java.nio.ByteBuffer
-import java.security.SecureRandom
-import javax.crypto.Cipher
-import javax.crypto.spec.GCMParameterSpec
-import javax.crypto.spec.SecretKeySpec
+import kotlinx.io.Buffer
+import kotlinx.io.EOFException
+import kotlinx.io.Sink
+import kotlinx.io.Source
+import kotlinx.io.readByteArray
 
 /**
  * Layout: MAGIC(4) VERSION(1) SALT(8), then length(4, top bit marks the last) and sealed bytes per
  * chunk; index and last flag are bound as AAD, so chunks cannot be dropped or reordered.
+ *
+ * All integers are big-endian. The format is shared by every platform, so a drive encrypted on one
+ * device decrypts on any other.
  */
 class StreamCrypto {
 
-    private val secureRandom = SecureRandom()
-
-    fun encryptStream(key: ByteArray, input: InputStream, output: OutputStream) {
-        val salt = ByteArray(SALT_LENGTH).also(secureRandom::nextBytes)
+    fun encryptStream(key: ByteArray, input: Source, output: Sink) {
+        val salt = secureRandomBytes(SALT_LENGTH)
         output.write(MAGIC)
-        output.write(VERSION)
+        output.writeByte(VERSION.toByte())
         output.write(salt)
 
-        val secretKey = SecretKeySpec(key, "AES")
         var current = ByteArray(CHUNK_SIZE)
         var next = ByteArray(CHUNK_SIZE)
         var currentSize = readFully(input, current)
@@ -31,7 +28,7 @@ class StreamCrypto {
         while (true) {
             val nextSize = if (currentSize < CHUNK_SIZE) 0 else readFully(input, next)
             val isFinal = nextSize <= 0
-            writeChunk(secretKey, salt, chunkIndex, current, currentSize, isFinal, output)
+            writeChunk(key, salt, chunkIndex, current, currentSize, isFinal, output)
             if (isFinal) break
             val swap = current
             current = next
@@ -43,28 +40,28 @@ class StreamCrypto {
     }
 
     private fun writeChunk(
-        secretKey: SecretKeySpec,
+        key: ByteArray,
         salt: ByteArray,
         chunkIndex: Int,
         chunk: ByteArray,
         size: Int,
         isFinal: Boolean,
-        output: OutputStream
+        output: Sink
     ) {
-        val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(
-            Cipher.ENCRYPT_MODE,
-            secretKey,
-            GCMParameterSpec(TAG_BITS, nonceFor(salt, chunkIndex))
+        val sealed = AesGcm.seal(
+            key,
+            nonceFor(salt, chunkIndex),
+            aadFor(chunkIndex, isFinal),
+            chunk,
+            0,
+            size.coerceAtLeast(0)
         )
-        cipher.updateAAD(aadFor(chunkIndex, isFinal))
-        val sealed = cipher.doFinal(chunk, 0, size.coerceAtLeast(0))
         val header = if (isFinal) sealed.size or FINAL_FLAG else sealed.size
-        output.write(ByteBuffer.allocate(4).putInt(header).array())
+        output.writeInt(header)
         output.write(sealed)
     }
 
-    fun decryptStream(key: ByteArray, input: InputStream, output: OutputStream) {
+    fun decryptStream(key: ByteArray, input: Source, output: Sink) {
         val header = ByteArray(MAGIC.size + 1 + SALT_LENGTH)
         if (readFully(input, header) != header.size) throw EOFException("Truncated header")
         for (i in MAGIC.indices) {
@@ -75,15 +72,14 @@ class StreamCrypto {
         }
         val salt = header.copyOfRange(MAGIC.size + 1, header.size)
 
-        val secretKey = SecretKeySpec(key, "AES")
-        val lengthBytes = ByteArray(4)
+        val lengthBytes = ByteArray(LENGTH_BYTES)
         var chunkIndex = 0
         var sawFinalChunk = false
         while (!sawFinalChunk) {
             val lengthRead = readFully(input, lengthBytes)
             if (lengthRead == 0) throw EOFException("Encrypted stream is truncated")
-            if (lengthRead != 4) throw EOFException("Truncated chunk length")
-            val marker = ByteBuffer.wrap(lengthBytes).int
+            if (lengthRead != LENGTH_BYTES) throw EOFException("Truncated chunk length")
+            val marker = readInt(lengthBytes, 0)
             val isFinal = marker and FINAL_FLAG != 0
             val sealedLength = marker and FINAL_FLAG.inv()
             if (sealedLength < TAG_BYTES || sealedLength > CHUNK_SIZE + TAG_BYTES) {
@@ -92,18 +88,13 @@ class StreamCrypto {
             val sealed = ByteArray(sealedLength)
             if (readFully(input, sealed) != sealedLength) throw EOFException("Truncated chunk")
 
-            val cipher = Cipher.getInstance(TRANSFORMATION)
-            cipher.init(
-                Cipher.DECRYPT_MODE,
-                secretKey,
-                GCMParameterSpec(TAG_BITS, nonceFor(salt, chunkIndex))
+            output.write(
+                AesGcm.open(key, nonceFor(salt, chunkIndex), aadFor(chunkIndex, isFinal), sealed)
             )
-            cipher.updateAAD(aadFor(chunkIndex, isFinal))
-            output.write(cipher.doFinal(sealed))
             sawFinalChunk = isFinal
             chunkIndex++
         }
-        if (input.read() != -1) throw IllegalArgumentException("Data after the final chunk")
+        if (!input.exhausted()) throw IllegalArgumentException("Data after the final chunk")
         output.flush()
     }
 
@@ -146,7 +137,7 @@ class StreamCrypto {
         frame: ByteArray
     ): ByteArray {
         require(frame.size > LENGTH_BYTES) { "Frame too short" }
-        val marker = ByteBuffer.wrap(frame, 0, LENGTH_BYTES).int
+        val marker = readInt(frame, 0)
         val isFinal = marker and FINAL_FLAG != 0
         val sealedLength = marker and FINAL_FLAG.inv()
         if (sealedLength < TAG_BYTES || sealedLength > CHUNK_SIZE + TAG_BYTES) {
@@ -154,59 +145,65 @@ class StreamCrypto {
         }
         if (frame.size < LENGTH_BYTES + sealedLength) throw EOFException("Truncated frame")
 
-        val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(
-            Cipher.DECRYPT_MODE,
-            SecretKeySpec(key, "AES"),
-            GCMParameterSpec(TAG_BITS, nonceFor(salt, frameIndex))
+        return AesGcm.open(
+            key,
+            nonceFor(salt, frameIndex),
+            aadFor(frameIndex, isFinal),
+            frame,
+            LENGTH_BYTES,
+            sealedLength
         )
-        cipher.updateAAD(aadFor(frameIndex, isFinal))
-        return cipher.doFinal(frame, LENGTH_BYTES, sealedLength)
     }
 
     fun encryptBytes(key: ByteArray, plaintext: ByteArray): ByteArray {
-        val nonce = ByteArray(NONCE_LENGTH).also(secureRandom::nextBytes)
-        val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(
-            Cipher.ENCRYPT_MODE,
-            SecretKeySpec(key, "AES"),
-            GCMParameterSpec(TAG_BITS, nonce)
-        )
-        return nonce + cipher.doFinal(plaintext)
+        val nonce = secureRandomBytes(NONCE_LENGTH)
+        return nonce + AesGcm.seal(key, nonce, null, plaintext)
     }
 
     fun decryptBytes(key: ByteArray, blob: ByteArray): ByteArray {
         require(blob.size > NONCE_LENGTH + TAG_BYTES) { "Blob too short" }
-        val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(
-            Cipher.DECRYPT_MODE,
-            SecretKeySpec(key, "AES"),
-            GCMParameterSpec(TAG_BITS, blob, 0, NONCE_LENGTH)
+        return AesGcm.open(
+            key,
+            blob.copyOfRange(0, NONCE_LENGTH),
+            null,
+            blob,
+            NONCE_LENGTH,
+            blob.size - NONCE_LENGTH
         )
-        return cipher.doFinal(blob, NONCE_LENGTH, blob.size - NONCE_LENGTH)
     }
 
+    /** salt(8) || chunkIndex(4, big-endian). */
     private fun nonceFor(salt: ByteArray, chunkIndex: Int): ByteArray =
-        ByteBuffer.allocate(NONCE_LENGTH).put(salt).putInt(chunkIndex).array()
+        Buffer().apply {
+            write(salt)
+            writeInt(chunkIndex)
+        }.readByteArray()
 
-    private fun aadFor(chunkIndex: Int, isFinal: Boolean): ByteArray = ByteBuffer.allocate(9)
-        .putInt(VERSION)
-        .putInt(chunkIndex)
-        .put(if (isFinal) 1 else 0)
-        .array()
+    /** version(4) || chunkIndex(4) || isFinal(1), all big-endian. */
+    private fun aadFor(chunkIndex: Int, isFinal: Boolean): ByteArray =
+        Buffer().apply {
+            writeInt(VERSION)
+            writeInt(chunkIndex)
+            writeByte(if (isFinal) 1 else 0)
+        }.readByteArray()
 
-    private fun readFully(input: InputStream, buffer: ByteArray): Int {
+    private fun readFully(input: Source, buffer: ByteArray): Int {
         var offset = 0
         while (offset < buffer.size) {
-            val read = input.read(buffer, offset, buffer.size - offset)
+            val read = input.readAtMostTo(buffer, offset, buffer.size)
             if (read == -1) break
             offset += read
         }
         return offset
     }
 
+    private fun readInt(bytes: ByteArray, offset: Int): Int =
+        ((bytes[offset].toInt() and 0xFF) shl 24) or
+                ((bytes[offset + 1].toInt() and 0xFF) shl 16) or
+                ((bytes[offset + 2].toInt() and 0xFF) shl 8) or
+                (bytes[offset + 3].toInt() and 0xFF)
+
     companion object {
-        private const val TRANSFORMATION = "AES/GCM/NoPadding"
         private val MAGIC = byteArrayOf(0x54, 0x44, 0x45, 0x31) // "TDE1"
         private const val VERSION = 1
         private const val FINAL_FLAG = 1 shl 31
@@ -214,7 +211,6 @@ class StreamCrypto {
         private const val LENGTH_BYTES = 4
         private const val SALT_LENGTH = 8
         private const val NONCE_LENGTH = 12
-        private const val TAG_BITS = 128
         private const val TAG_BYTES = 16
     }
 }

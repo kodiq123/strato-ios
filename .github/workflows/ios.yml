@@ -1,7 +1,7 @@
 name: iOS
 
 # Builds an unsigned TeleDrive.ipa for sideloading (AltStore / Sideloadly re-sign it with
-# the user's Apple ID on install).
+# the user's Apple ID on install), then runs the iOS tests on a simulator.
 on:
   push:
     branches: [main]
@@ -16,8 +16,10 @@ concurrency:
 
 jobs:
   ipa:
-    runs-on: macos-15
-    timeout-minutes: 90
+    # Intel runner: the arm64 macOS pool has had long capacity queues. Building for iPhone
+    # (arm64) from an Intel Mac is a normal cross-compile.
+    runs-on: macos-26-intel
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
@@ -32,7 +34,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.konan
-          key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
+          key: konan-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('gradle/libs.versions.toml') }}
 
       - name: Select Xcode
         run: |
@@ -57,6 +59,7 @@ jobs:
       - name: Build app (unsigned)
         run: |
           set -o pipefail
+          mkdir -p build
           xcodebuild \
             -project iosApp/TeleDrive.xcodeproj \
             -scheme TeleDrive \
@@ -67,7 +70,8 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            build | tee build/xcodebuild.log | grep -E "error:|warning: .*TeleDrive|\*\* BUILD" || true
+            build > build/xcodebuild.log 2>&1 || { grep -E "error:|e: " build/xcodebuild.log | head -80; exit 1; }
+          grep -E "\*\* BUILD" build/xcodebuild.log
           test -d build/ios/Build/Products/Release-iphoneos/TeleDrive.app
 
       - name: Package IPA
@@ -83,10 +87,79 @@ jobs:
           path: dist/TeleDrive-unsigned.ipa
           if-no-files-found: error
 
-      - name: Upload build log on failure
+      - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: xcodebuild-log
-          path: build/xcodebuild.log
+          name: xcodebuild-logs
+          path: build/*.log
+          if-no-files-found: ignore
+
+  simulator-tests:
+    # The AndroidX KMP libraries no longer publish iosX64, so simulator tests need an arm64 Mac.
+    # Not blocking: when the arm64 pool is saturated the IPA above is still produced.
+    runs-on: macos-26
+    continue-on-error: true
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Cache Kotlin/Native toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('gradle/libs.versions.toml') }}
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+          xcodebuild -version
+
+      - name: Cache TDLibFramework
+        uses: actions/cache@v4
+        with:
+          path: iosApp/Frameworks
+          key: tdlib-${{ hashFiles('iosApp/scripts/fetch-tdlib.sh') }}
+
+      - name: Fetch TDLibFramework
+        run: bash iosApp/scripts/fetch-tdlib.sh
+
+      - name: Generate Xcode project
+        working-directory: iosApp
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Test on simulator (Android crypto fixtures via CryptoKit, TDLib link)
+        run: |
+          set -o pipefail
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          print(next(d["udid"] for runtime, items in devices.items() if "iOS" in runtime
+                     for d in items if d["name"].startswith("iPhone")))')
+          echo "Simulator: $UDID"
+          mkdir -p build
+          xcodebuild \
+            -project iosApp/TeleDrive.xcodeproj \
+            -scheme TeleDrive \
+            -destination "id=$UDID" \
+            -derivedDataPath build/ios-sim \
+            CODE_SIGNING_ALLOWED=NO \
+            test > build/xcodebuild-test.log 2>&1 || { grep -E "error:|e: |XCTAssert|failed" build/xcodebuild-test.log | head -80; exit 1; }
+          grep -E "Test Suite|Executed|\*\* TEST" build/xcodebuild-test.log | tail -20
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-test-logs
+          path: build/*.log
           if-no-files-found: ignore

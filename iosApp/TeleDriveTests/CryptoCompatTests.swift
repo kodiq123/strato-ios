@@ -1,0 +1,21 @@
+import XCTest
+import TeleDriveKit
+@testable import TeleDrive
+
+/// Runs the shared crypto self-test through the real CryptoKit provider: the fixtures were written
+/// by the Android (javax.crypto) implementation, so passing means iOS reads and writes the same
+/// drive format.
+final class CryptoCompatTests: XCTestCase {
+
+    func testFixturesFromAndroidDecryptWithCryptoKit() {
+        IosCryptoBridge.shared.aesGcm = CryptoKitAesGcm()
+        let failures = CryptoSelfTest.shared.run()
+        XCTAssertEqual(failures, [], failures.joined(separator: "\n"))
+    }
+
+    func testTdlibIsLinked() {
+        let raw = TdJsonBridge().execute(request: #"{"@type":"getOption","name":"version"}"#)
+        XCTAssertNotNil(raw)
+        XCTAssertTrue(raw?.contains("optionValueString") == true, raw ?? "nil")
+    }
+}

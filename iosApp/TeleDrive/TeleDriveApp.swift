@@ -6,6 +6,11 @@ struct TeleDriveApp: App {
     /// One bridge for the app's lifetime: TDLib clients and the receive loop live behind it.
     private let tdlib = TdJsonBridge()
 
+    init() {
+        // Must precede any Kotlin code that encrypts or decrypts.
+        IosCryptoBridge.shared.aesGcm = CryptoKitAesGcm()
+    }
+
     var body: some Scene {
         WindowGroup {
             ComposeView(transport: tdlib)

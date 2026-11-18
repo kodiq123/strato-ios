@@ -69,3 +69,33 @@ targets:
           fi
           cd "$SRCROOT/.."
           ./gradlew :ui:embedAndSignAppleFrameworkForXcode --console=plain
+
+  TeleDriveTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: TeleDriveTests
+    dependencies:
+      - target: TeleDrive
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.drdisagree.teledrive.ios.tests
+        GENERATE_INFOPLIST_FILE: YES
+        FRAMEWORK_SEARCH_PATHS: $(SRCROOT)/../ui/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/TeleDrive.app/TeleDrive
+        BUNDLE_LOADER: $(TEST_HOST)
+
+schemes:
+  TeleDrive:
+    build:
+      targets:
+        TeleDrive: all
+        TeleDriveTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - TeleDriveTests
+    archive:
+      config: Release
