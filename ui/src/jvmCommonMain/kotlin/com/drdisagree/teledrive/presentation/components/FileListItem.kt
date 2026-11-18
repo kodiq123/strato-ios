@@ -1,0 +1,143 @@
+package com.drdisagree.teledrive.presentation.components
+
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.OfflinePin
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import com.drdisagree.teledrive.domain.model.DriveFile
+import com.drdisagree.teledrive.presentation.common.Formatters
+import com.drdisagree.teledrive.resources.Res
+import com.drdisagree.teledrive.resources.common_content_description_available_offline
+import com.drdisagree.teledrive.resources.common_content_description_favorite
+import com.drdisagree.teledrive.resources.common_content_description_selected
+import com.drdisagree.teledrive.resources.common_file_size_and_date
+import com.drdisagree.teledrive.resources.common_open
+import com.drdisagree.teledrive.resources.common_select
+import org.jetbrains.compose.resources.stringResource
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun FileListItem(
+    file: DriveFile,
+    selected: Boolean,
+    selectionMode: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    showFavorite: Boolean = true,
+    showAvailableOffline: Boolean = true,
+    status: (@Composable () -> Unit)? = null
+) {
+    val compact = LocalCompactLayout.current
+    val background = if (selected) {
+        MaterialTheme.colorScheme.secondaryContainer
+    } else {
+        Color.Transparent
+    }
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.large)
+            .background(background)
+            .combinedClickable(
+                onClickLabel = stringResource(
+                    if (selectionMode) Res.string.common_select else Res.string.common_open
+                ),
+                onLongClickLabel = stringResource(Res.string.common_select),
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
+            .padding(horizontal = 12.dp, vertical = if (compact) 4.dp else 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box {
+            FileThumbnail(
+                file = file,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(if (compact) 38.dp else 48.dp)
+                    .clip(MaterialTheme.shapes.medium)
+            )
+            if (selected) {
+                Icon(
+                    imageVector = Icons.Filled.CheckCircle,
+                    contentDescription = stringResource(Res.string.common_content_description_selected),
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .size(18.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+        Spacer(Modifier.width(if (compact) 10.dp else 14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = file.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+            }
+            if (!compact) {
+                Text(
+                    text = stringResource(
+                        Res.string.common_file_size_and_date,
+                        Formatters.bytes(file.sizeBytes),
+                        Formatters.date(file.modifiedAt)
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        if (file.isFavorite && showFavorite) {
+            Spacer(Modifier.width(6.dp))
+            Icon(
+                imageVector = Icons.Filled.Star,
+                contentDescription = stringResource(Res.string.common_content_description_favorite),
+                modifier = Modifier.size(14.dp),
+                tint = MaterialTheme.colorScheme.tertiary
+            )
+        }
+        if (file.isAvailableOffline && showAvailableOffline) {
+            Spacer(Modifier.width(6.dp))
+            Icon(
+                imageVector = Icons.Filled.OfflinePin,
+                contentDescription = stringResource(
+                    Res.string.common_content_description_available_offline
+                ),
+                modifier = Modifier.size(14.dp),
+                tint = MaterialTheme.colorScheme.secondary
+            )
+        }
+        if (status != null) {
+            Spacer(Modifier.width(8.dp))
+            status()
+        }
+        Spacer(Modifier.width(8.dp))
+        BackupStateBadge(file = file)
+    }
+}

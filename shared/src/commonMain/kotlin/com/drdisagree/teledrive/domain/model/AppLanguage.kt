@@ -1,0 +1,21 @@
+package com.drdisagree.teledrive.domain.model
+
+enum class AppLanguage(val code: String) {
+    SYSTEM("system"),
+    ENGLISH("en"),
+    RUSSIAN("ru"),
+    PORTUGUESE_BR("pt-BR"),
+    CHINESE_SIMPLIFIED("zh-CN"),
+    SPANISH("es"),
+    INDONESIAN("id"),
+    ITALIAN("it");
+
+    companion object {
+        fun fromCode(code: String?): AppLanguage {
+            if (code == null) return SYSTEM
+            return entries.firstOrNull {
+                it.code.equals(code, ignoreCase = true) || it.name.equals(code, ignoreCase = true)
+            } ?: SYSTEM
+        }
+    }
+}
