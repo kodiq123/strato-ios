@@ -1,0 +1,65 @@
+# XcodeGen spec: `xcodegen generate` (run in this folder, on macOS) writes TeleDrive.xcodeproj.
+# The Kotlin side is built by Gradle from the pre-build script, the standard KMP setup.
+name: TeleDrive
+options:
+  bundleIdPrefix: com.drdisagree.teledrive
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    MARKETING_VERSION: "1.5.0"
+    CURRENT_PROJECT_VERSION: "10"
+    SWIFT_VERSION: "5.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    ENABLE_BITCODE: NO
+
+targets:
+  TeleDrive:
+    type: application
+    platform: iOS
+    sources:
+      - path: TeleDrive
+    info:
+      path: TeleDrive/Info.plist
+      properties:
+        CFBundleDisplayName: TeleDrive
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UIApplicationSupportsIndirectInputEvents: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        CADisableMinimumFrameDurationOnPhone: true
+        ITSAppUsesNonExemptEncryption: false
+        LSApplicationQueriesSchemes:
+          - tg
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.drdisagree.teledrive.ios
+        TARGETED_DEVICE_FAMILY: "1,2"
+        FRAMEWORK_SEARCH_PATHS: $(SRCROOT)/../ui/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)
+        OTHER_LDFLAGS:
+          - "$(inherited)"
+          - "-framework"
+          - "TeleDriveKit"
+          - "-lc++"
+          - "-lsqlite3"
+    preBuildScripts:
+      - name: Build Kotlin framework
+        basedOnDependencyAnalysis: false
+        script: |
+          if [ "YES" = "$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED" ]; then
+            echo "Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED being set to YES"
+            exit 0
+          fi
+          cd "$SRCROOT/.."
+          ./gradlew :ui:embedAndSignAppleFrameworkForXcode --console=plain

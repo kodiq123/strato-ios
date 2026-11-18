@@ -1,0 +1,83 @@
+name: iOS
+
+# Builds an unsigned TeleDrive.ipa for sideloading (AltStore / Sideloadly re-sign it with
+# the user's Apple ID on install).
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "website/**"
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ipa:
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Cache Kotlin/Native toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+          xcodebuild -version
+
+      - name: Generate Xcode project
+        working-directory: iosApp
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Build app (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project iosApp/TeleDrive.xcodeproj \
+            -scheme TeleDrive \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/ios \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build | tee build/xcodebuild.log | grep -E "error:|warning: .*TeleDrive|\*\* BUILD" || true
+          test -d build/ios/Build/Products/Release-iphoneos/TeleDrive.app
+
+      - name: Package IPA
+        run: |
+          mkdir -p dist/Payload
+          cp -R build/ios/Build/Products/Release-iphoneos/TeleDrive.app dist/Payload/
+          cd dist && zip -qry TeleDrive-unsigned.ipa Payload
+          ls -lh TeleDrive-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TeleDrive-unsigned-ipa
+          path: dist/TeleDrive-unsigned.ipa
+          if-no-files-found: error
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: build/xcodebuild.log
+          if-no-files-found: ignore

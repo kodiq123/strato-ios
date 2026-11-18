@@ -21,13 +21,26 @@ kotlin {
 
     jvm("desktop")
 
+    listOf(iosArm64(), iosSimulatorArm64()).forEach { target ->
+        target.binaries.framework {
+            baseName = "TeleDriveKit"
+            isStatic = true
+        }
+    }
+
     sourceSets {
         val jvmCommonMain = create("jvmCommonMain") {
             dependsOn(commonMain.get())
             dependencies {
                 implementation(libs.zip4j)
+                implementation(libs.zxing.core)
             }
         }
+        val iosMain = create("iosMain") {
+            dependsOn(commonMain.get())
+        }
+        named("iosArm64Main") { dependsOn(iosMain) }
+        named("iosSimulatorArm64Main") { dependsOn(iosMain) }
         named("androidMain") {
             dependsOn(jvmCommonMain)
             dependencies {
@@ -65,7 +78,6 @@ kotlin {
                 api(libs.androidx.paging.compose)
                 api(libs.coil.compose)
                 implementation(libs.kotlinx.serialization.json)
-                implementation(libs.zxing.core)
             }
         }
     }
