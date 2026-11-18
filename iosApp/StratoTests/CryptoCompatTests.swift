@@ -1,6 +1,6 @@
 import XCTest
-import TeleDriveKit
-@testable import TeleDrive
+import StratoKit
+@testable import Strato
 
 /// Runs the shared crypto self-test through the real CryptoKit provider: the fixtures were written
 /// by the Android (javax.crypto) implementation, so passing means iOS reads and writes the same

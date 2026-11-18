@@ -1,6 +1,6 @@
 import Foundation
 import TDLibFramework
-import TeleDriveKit
+import StratoKit
 
 /// Implements the Kotlin TdJsonTransport over TDLib's C JSON interface (td_json_client.h).
 /// Kotlin calls receive(timeoutSeconds:) from a single dedicated thread, as TDLib requires.

@@ -1,6 +1,6 @@
 name: iOS
 
-# Builds an unsigned TeleDrive.ipa for sideloading (AltStore / Sideloadly re-sign it with
+# Builds an unsigned Strato.ipa for sideloading (AltStore / Sideloadly re-sign it with
 # the user's Apple ID on install), then runs the iOS tests on a simulator.
 on:
   push:
@@ -61,8 +61,8 @@ jobs:
           set -o pipefail
           mkdir -p build
           xcodebuild \
-            -project iosApp/TeleDrive.xcodeproj \
-            -scheme TeleDrive \
+            -project iosApp/Strato.xcodeproj \
+            -scheme Strato \
             -configuration Release \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
@@ -72,19 +72,19 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             build > build/xcodebuild.log 2>&1 || { grep -E "error:|e: " build/xcodebuild.log | head -80; exit 1; }
           grep -E "\*\* BUILD" build/xcodebuild.log
-          test -d build/ios/Build/Products/Release-iphoneos/TeleDrive.app
+          test -d build/ios/Build/Products/Release-iphoneos/Strato.app
 
       - name: Package IPA
         run: |
           mkdir -p dist/Payload
-          cp -R build/ios/Build/Products/Release-iphoneos/TeleDrive.app dist/Payload/
-          cd dist && zip -qry TeleDrive-unsigned.ipa Payload
-          ls -lh TeleDrive-unsigned.ipa
+          cp -R build/ios/Build/Products/Release-iphoneos/Strato.app dist/Payload/
+          cd dist && zip -qry Strato-unsigned.ipa Payload
+          ls -lh Strato-unsigned.ipa
 
       - uses: actions/upload-artifact@v4
         with:
-          name: TeleDrive-unsigned-ipa
-          path: dist/TeleDrive-unsigned.ipa
+          name: Strato-unsigned-ipa
+          path: dist/Strato-unsigned.ipa
           if-no-files-found: error
 
       - name: Upload logs on failure
@@ -148,8 +148,8 @@ jobs:
           echo "Simulator: $UDID"
           mkdir -p build
           xcodebuild \
-            -project iosApp/TeleDrive.xcodeproj \
-            -scheme TeleDrive \
+            -project iosApp/Strato.xcodeproj \
+            -scheme Strato \
             -destination "id=$UDID" \
             -derivedDataPath build/ios-sim \
             CODE_SIGNING_ALLOWED=NO \

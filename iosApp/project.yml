@@ -1,8 +1,8 @@
-# XcodeGen spec: `xcodegen generate` (run in this folder, on macOS) writes TeleDrive.xcodeproj.
+# XcodeGen spec: `xcodegen generate` (run in this folder, on macOS) writes Strato.xcodeproj.
 # The Kotlin side is built by Gradle from the pre-build script, the standard KMP setup.
-name: TeleDrive
+name: Strato
 options:
-  bundleIdPrefix: com.drdisagree.teledrive
+  bundleIdPrefix: app.strato
   deploymentTarget:
     iOS: "16.0"
   createIntermediateGroups: true
@@ -16,20 +16,20 @@ settings:
     ENABLE_BITCODE: NO
 
 targets:
-  TeleDrive:
+  Strato:
     type: application
     platform: iOS
     sources:
-      - path: TeleDrive
+      - path: Strato
     dependencies:
       # Static TDLib (td_json_client), fetched by .github/workflows/ios.yml or
       # scripts/fetch-tdlib.sh into iosApp/Frameworks/. Static, so it is linked, not embedded.
       - framework: Frameworks/TDLibFramework.xcframework
         embed: false
     info:
-      path: TeleDrive/Info.plist
+      path: Strato/Info.plist
       properties:
-        CFBundleDisplayName: TeleDrive
+        CFBundleDisplayName: Strato
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
@@ -49,13 +49,13 @@ targets:
           - tg
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.drdisagree.teledrive.ios
+        PRODUCT_BUNDLE_IDENTIFIER: app.strato.ios
         TARGETED_DEVICE_FAMILY: "1,2"
         FRAMEWORK_SEARCH_PATHS: $(SRCROOT)/../ui/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)
         OTHER_LDFLAGS:
           - "$(inherited)"
           - "-framework"
-          - "TeleDriveKit"
+          - "StratoKit"
           - "-lc++"
           - "-lz"
           - "-lsqlite3"
@@ -70,32 +70,32 @@ targets:
           cd "$SRCROOT/.."
           ./gradlew :ui:embedAndSignAppleFrameworkForXcode --console=plain
 
-  TeleDriveTests:
+  StratoTests:
     type: bundle.unit-test
     platform: iOS
     sources:
-      - path: TeleDriveTests
+      - path: StratoTests
     dependencies:
-      - target: TeleDrive
+      - target: Strato
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.drdisagree.teledrive.ios.tests
+        PRODUCT_BUNDLE_IDENTIFIER: app.strato.ios.tests
         GENERATE_INFOPLIST_FILE: YES
         FRAMEWORK_SEARCH_PATHS: $(SRCROOT)/../ui/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)
-        TEST_HOST: $(BUILT_PRODUCTS_DIR)/TeleDrive.app/TeleDrive
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/Strato.app/Strato
         BUNDLE_LOADER: $(TEST_HOST)
 
 schemes:
-  TeleDrive:
+  Strato:
     build:
       targets:
-        TeleDrive: all
-        TeleDriveTests: [test]
+        Strato: all
+        StratoTests: [test]
     run:
       config: Debug
     test:
       config: Debug
       targets:
-        - TeleDriveTests
+        - StratoTests
     archive:
       config: Release

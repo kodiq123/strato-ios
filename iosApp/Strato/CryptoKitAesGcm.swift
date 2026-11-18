@@ -1,6 +1,6 @@
 import CryptoKit
 import Foundation
-import TeleDriveKit
+import StratoKit
 
 /// AES-256-GCM for the Kotlin encryption formats. CryptoKit's sealed box splits ciphertext and the
 /// 16-byte tag; javax.crypto (Android) concatenates them, so this provider does the same.

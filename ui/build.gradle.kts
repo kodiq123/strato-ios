@@ -23,7 +23,7 @@ kotlin {
 
     listOf(iosArm64(), iosSimulatorArm64()).forEach { target ->
         target.binaries.framework {
-            baseName = "TeleDriveKit"
+            baseName = "StratoKit"
             isStatic = true
             // Swift implements TdJsonTransport (declared in :shared), so it must be visible.
             export(project(":shared"))

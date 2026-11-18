@@ -1,8 +1,8 @@
 import SwiftUI
-import TeleDriveKit
+import StratoKit
 
 @main
-struct TeleDriveApp: App {
+struct StratoApp: App {
     /// One bridge for the app's lifetime: TDLib clients and the receive loop live behind it.
     private let tdlib = TdJsonBridge()
 

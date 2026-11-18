@@ -34,7 +34,7 @@ fun MainViewController(transport: TdJsonTransport): UIViewController {
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("TeleDrive", style = MaterialTheme.typography.headlineMedium)
+                    Text("Strato", style = MaterialTheme.typography.headlineMedium)
                     Text(
                         "iOS port in progress",
                         style = MaterialTheme.typography.bodyMedium,
