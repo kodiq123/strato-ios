@@ -1,6 +1,8 @@
 package com.drdisagree.teledrive.core.telegram
 
 import com.drdisagree.teledrive.core.common.SafeLog
+import com.drdisagree.teledrive.core.common.nowMillis
+import kotlin.concurrent.Volatile
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -14,13 +16,13 @@ class TelegramPacer {
 
     private val mutex = Mutex()
     private var tokens = BURST.toDouble()
-    private var lastRefillAt = System.currentTimeMillis()
+    private var lastRefillAt = nowMillis()
 
     @Volatile
     private var floodUntil = 0L
 
     val floodWaitSeconds: Int
-        get() = ((floodUntil - System.currentTimeMillis()) / 1000L)
+        get() = ((floodUntil - nowMillis()) / 1000L)
             .coerceAtLeast(0L)
             .toInt()
 
@@ -38,7 +40,7 @@ class TelegramPacer {
 
     private suspend fun awaitClearance() {
         while (true) {
-            val remaining = floodUntil - System.currentTimeMillis()
+            val remaining = floodUntil - nowMillis()
             if (remaining > 0) {
                 delay(remaining.milliseconds)
                 continue
@@ -50,7 +52,7 @@ class TelegramPacer {
     }
 
     private fun takeToken(): Long {
-        val now = System.currentTimeMillis()
+        val now = nowMillis()
         val elapsed = (now - lastRefillAt).coerceAtLeast(0)
         lastRefillAt = now
         tokens = (tokens + elapsed * TOKENS_PER_MS).coerceAtMost(BURST.toDouble())
@@ -62,7 +64,7 @@ class TelegramPacer {
     }
 
     private fun recordFloodWait(seconds: Int) {
-        val until = System.currentTimeMillis() + (seconds + 1) * 1000L
+        val until = nowMillis() + (seconds + 1) * 1000L
         if (until > floodUntil) {
             floodUntil = until
             SafeLog.w(TAG, "Flood wait for ${seconds}s, holding every request")

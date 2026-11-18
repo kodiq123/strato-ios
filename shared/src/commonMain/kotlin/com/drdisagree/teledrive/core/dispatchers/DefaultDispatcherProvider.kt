@@ -2,6 +2,7 @@ package com.drdisagree.teledrive.core.dispatchers
 
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 
 class DefaultDispatcherProvider : DispatcherProvider {
     override val main: CoroutineDispatcher = Dispatchers.Main

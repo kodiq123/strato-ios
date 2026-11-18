@@ -20,6 +20,9 @@ kotlin {
 
     jvm("desktop")
 
+    iosArm64()
+    iosSimulatorArm64()
+
     sourceSets {
         commonMain {
             dependencies {
@@ -66,6 +69,11 @@ kotlin {
                 implementation(libs.junit)
             }
         }
+        val iosMain = create("iosMain") {
+            dependsOn(commonMain.get())
+        }
+        named("iosArm64Main") { dependsOn(iosMain) }
+        named("iosSimulatorArm64Main") { dependsOn(iosMain) }
     }
 }
 
@@ -76,4 +84,6 @@ room {
 dependencies {
     add("kspAndroid", libs.androidx.room.compiler)
     add("kspDesktop", libs.androidx.room.compiler)
+    add("kspIosArm64", libs.androidx.room.compiler)
+    add("kspIosSimulatorArm64", libs.androidx.room.compiler)
 }
