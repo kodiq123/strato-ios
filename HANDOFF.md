@@ -52,7 +52,8 @@ TDLib, Apache-2.0). Gera um **IPA sem assinatura** para sideload com Apple ID gr
     e as datas/números via `java.text` (`PlatformFormat.jvm.kt`), idênticos ao TeleDrive original;
   - no iOS: QR pelo CoreImage, listagem de ZIP pelo `ZipCentralDirectory` (comum, testado contra o
     zip4j), datas pelo `NSDateFormatter`, miniaturas pelo UIKit (`IosThumbnailStore`), prévia em
-    `IosPreviewScreen` (vídeo, áudio e PDF abrem no QuickLook);
+    `IosPreviewScreen`: PDF pelo PDFKit (`InlinePdf`), vídeo/áudio pelo AVPlayer (`IosMediaPlayer`); o streaming
+    serve a `MediaByteSource` comum ao AVPlayer por um `AVAssetResourceLoaderDelegate` (esquema `strato-stream://`);
   - `ui/src/iosMain/.../presentation/MainViewController.kt` é a entrada: sobe o Koin (`iosUiModule`),
     as tarefas de início do desktop e o Coil; `platform/IosPlatformProviders.kt` fornece seletores,
     compartilhar, abrir URL etc.;
@@ -67,18 +68,20 @@ TDLib, Apache-2.0). Gera um **IPA sem assinatura** para sideload com Apple ID gr
 | 1 — Base iOS + pipeline do IPA | ✅ release v0.1.0-etapa1 |
 | 2 — Login no Telegram + leitura dos drives | ✅ testada no iPhone, release v0.2.0-etapa2 |
 | 3 — Motor (sync, download/descriptografia, envio, restaurar chave) | ✅ testada no iPhone, release v0.3.0-etapa3 |
-| 4 — Interface completa (portar ui/jvmCommonMain para commonMain; QR sem zxing; prévia de ZIP sem zip4j; miniaturas; textos traduzidos) | 🟡 IPA v0.4.0 no CI, **falta o teste no iPhone** e a release v0.4.0-etapa4 |
-| 5 — Recursos do iOS (AVPlayer, backup da galeria de Fotos, BGTaskScheduler, NWPathMonitor, Face ID, extensão de compartilhamento, ProxyProbe) | pendente |
+| 4 — Interface completa (portar ui/jvmCommonMain para commonMain; QR sem zxing; prévia de ZIP sem zip4j; miniaturas; textos traduzidos) | ✅ testada no iPhone, release v0.4.0-etapa4 |
+| 5 — Recursos do iOS (AVPlayer, backup da galeria de Fotos, BGTaskScheduler, NWPathMonitor, Face ID, extensão de compartilhamento, ProxyProbe) | 🟡 parte 1 (player com streaming + PDF no app) no CI, falta o teste no iPhone |
 
 ## Próximo passo
-Quando o build do commit da etapa 4 terminar: criar a release `v0.4.0-etapa4` (pre-release, IPA anexado,
-status "não testado"). Depois o usuário testa no iPhone:
-1. O app abre direto na interface completa, com o login já feito (sessão da etapa 3).
-2. Navegar pelos drives e pastas; miniaturas de fotos aparecem.
-3. Abrir prévia de imagem, texto, ZIP (lista de arquivos) e PDF/vídeo (botão Abrir → QuickLook).
-4. Baixar, enviar (botão + / app Arquivos), compartilhar, renomear, lixeira.
-5. Configurações: trocar o idioma e reabrir o app; datas e textos no idioma escolhido.
-6. Sair da conta e entrar de novo pelo QR (o QR agora é desenhado pelo CoreImage).
+Etapa 5 em partes; a etapa só fecha (release `v0.5.0-etapa5`) quando todas estiverem testadas.
+- Parte 1 (no CI): vídeo/música tocando enquanto baixam (inclusive 🔒 e arquivos em partes), mídia
+  baixada tocando dentro do app e PDF dentro da prévia. Teste no iPhone:
+  1. Abrir um vídeo MP4/MOV não baixado: deve começar a tocar em poucos segundos; avançar na barra.
+  2. O mesmo com um vídeo 🔒 e com um vídeo grande (dividido em partes).
+  3. Uma música MP3/M4A não baixada.
+  4. Um vídeo já baixado toca dentro da prévia.
+  5. Um PDF baixado aparece direto na prévia, com rolagem e zoom.
+  MKV/WebM não tocam no player do iOS: aparece "falha na reprodução" com a opção de baixar.
+- Próximas partes: miniatura de vídeo, NWPathMonitor (Wi-Fi/dados), transferências em segundo plano
+  (BGTaskScheduler), backup da galeria de Fotos, Face ID, extensão de compartilhamento, ProxyProbe.
 
-Se algo falhar, depurar a partir do erro exato mostrado na tela. A etapa 5 só começa quando o usuário
-pedir.
+Se algo falhar, depurar a partir do erro exato mostrado na tela.

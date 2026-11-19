@@ -75,8 +75,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
+import com.drdisagree.teledrive.core.crypto.CryptoKeys
+import com.drdisagree.teledrive.core.crypto.StreamCrypto
+import com.drdisagree.teledrive.core.crypto.WrappedKeyRepository
 import com.drdisagree.teledrive.core.files.MimeTypes
 import com.drdisagree.teledrive.core.io.File
+import com.drdisagree.teledrive.core.media.PartedMediaByteSource
+import com.drdisagree.teledrive.core.media.TelegramMediaByteSource
+import com.drdisagree.teledrive.core.telegram.TelegramClient
+import org.koin.compose.koinInject
 import com.drdisagree.teledrive.domain.model.DriveFile
 import com.drdisagree.teledrive.presentation.common.Formatters
 import com.drdisagree.teledrive.presentation.common.LinkedText
@@ -90,7 +97,6 @@ import com.drdisagree.teledrive.presentation.components.LoadingState
 import com.drdisagree.teledrive.presentation.components.RenameDialog
 import com.drdisagree.teledrive.presentation.platform.LocalFileRevealer
 import com.drdisagree.teledrive.presentation.platform.LocalUrlOpener
-import com.drdisagree.teledrive.presentation.platform.presentQuickLook
 import com.drdisagree.teledrive.resources.Res
 import com.drdisagree.teledrive.resources.common_actions
 import com.drdisagree.teledrive.resources.common_back
@@ -523,26 +529,46 @@ private fun PreviewPane(
                 }
             }
 
-            is PreviewContent.LocalMedia -> QuickLookState(
-                icon = if (current.isAudio) Icons.Filled.Audiotrack else Icons.Filled.Movie,
-                file = file,
-                path = current.path,
-                failureRes = Res.string.player_playback_failed,
-                snackbarHostState = snackbarHostState
+            is PreviewContent.LocalMedia -> IosMediaPlayer(
+                key = "${file.id}:${current.path}",
+                fileName = file.name,
+                mimeType = file.mimeType,
+                localPath = current.path,
+                source = null,
+                onDownload = null
             )
 
-            is PreviewContent.Pdf -> QuickLookState(
-                icon = Icons.Filled.PictureAsPdf,
-                file = file,
-                path = current.path,
-                failureRes = Res.string.preview_pdf_open_failed,
-                snackbarHostState = snackbarHostState
-            )
+            is PreviewContent.Pdf -> InlinePdf(path = current.path)
 
-            is PreviewContent.StreamedMedia -> DownloadState(
-                sizeBytes = file.sizeBytes,
-                onDownload = { viewModel.download(file) }
-            )
+            is PreviewContent.StreamedMedia -> {
+                val telegramClient = koinInject<TelegramClient>()
+                val streamCrypto = koinInject<StreamCrypto>()
+                val wrappedKeyRepository = koinInject<WrappedKeyRepository>()
+                IosMediaPlayer(
+                    key = "${file.id}:stream",
+                    fileName = file.name,
+                    mimeType = file.mimeType,
+                    localPath = null,
+                    source = {
+                        if (current.parts.isEmpty()) {
+                            TelegramMediaByteSource(telegramClient, current.remoteFileId)
+                        } else {
+                            PartedMediaByteSource(
+                                telegramClient = telegramClient,
+                                streamCrypto = streamCrypto,
+                                parts = current.parts,
+                                encrypted = current.encrypted,
+                                contentKey = if (current.encrypted) {
+                                    wrappedKeyRepository.get(CryptoKeys.CONTENT)
+                                } else {
+                                    null
+                                }
+                            )
+                        }
+                    },
+                    onDownload = { viewModel.download(file) }
+                )
+            }
 
             is PreviewContent.PlainText -> Column(
                 modifier = Modifier
@@ -634,42 +660,6 @@ private fun PreviewPane(
 private val TOP_BAR_INSET = 72.dp
 
 @Composable
-private fun QuickLookState(
-    icon: ImageVector,
-    file: DriveFile,
-    path: String,
-    failureRes: StringResource,
-    snackbarHostState: SnackbarHostState
-) {
-    var openFailed by remember(path) { mutableStateOf(false) }
-    if (openFailed) {
-        LaunchedEffect(path) {
-            snackbarHostState.showSnackbar(getString(failureRes))
-            openFailed = false
-        }
-    }
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            modifier = Modifier.size(56.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = Formatters.bytes(file.sizeBytes),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Button(onClick = { if (!openInQuickLook(path)) openFailed = true }) {
-            Text(stringResource(Res.string.common_open))
-        }
-    }
-}
-@Composable
 private fun DownloadState(sizeBytes: Long, onDownload: () -> Unit) {
     EmptyState(
         icon = Icons.Filled.Download,
@@ -682,6 +672,3 @@ private fun DownloadState(sizeBytes: Long, onDownload: () -> Unit) {
         onAction = onDownload
     )
 }
-
-private fun openInQuickLook(path: String): Boolean =
-    File(path).exists() && presentQuickLook(path)
