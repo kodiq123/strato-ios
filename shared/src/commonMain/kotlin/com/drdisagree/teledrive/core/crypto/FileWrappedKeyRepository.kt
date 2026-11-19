@@ -2,8 +2,12 @@ package com.drdisagree.teledrive.core.crypto
 
 import com.drdisagree.teledrive.core.common.SafeLog
 import com.drdisagree.teledrive.core.files.AppStoragePaths
-import java.io.File
-import java.security.SecureRandom
+import com.drdisagree.teledrive.core.common.Lock
+import com.drdisagree.teledrive.core.common.withLock
+import com.drdisagree.teledrive.core.io.File
+import com.drdisagree.teledrive.core.io.parentFile
+import com.drdisagree.teledrive.core.io.readBytes
+import com.drdisagree.teledrive.core.io.writeBytes
 
 class FileWrappedKeyRepository(
     private val storagePaths: AppStoragePaths,
@@ -12,14 +16,15 @@ class FileWrappedKeyRepository(
 
     private val cache = mutableMapOf<String, ByteArray>()
     private val recreated = mutableSetOf<String>()
-    private val secureRandom = SecureRandom()
+    private val lock = Lock()
 
     /**
      * The Keystore cannot unwrap keys of a restored copy; disposable keys are minted again, the
      * content key never is.
      */
-    @Synchronized
-    override fun getOrCreate(name: String, sizeBytes: Int): ByteArray {
+    override fun getOrCreate(name: String, sizeBytes: Int): ByteArray = lock.withLock { getOrCreateLocked(name, sizeBytes) }
+
+    private fun getOrCreateLocked(name: String, sizeBytes: Int): ByteArray {
         cache[name]?.let { return it }
         val file = keyFile(name)
         if (file.exists()) {
@@ -33,7 +38,7 @@ class FileWrappedKeyRepository(
             file.delete()
             recreated += name
         }
-        val fresh = ByteArray(sizeBytes).also(secureRandom::nextBytes)
+        val fresh = secureRandomBytes(sizeBytes)
         file.parentFile?.mkdirs()
         file.writeBytes(cipher.encrypt(fresh))
         cache[name] = fresh
@@ -41,14 +46,14 @@ class FileWrappedKeyRepository(
     }
 
     /** True when [name] had to be replaced, so whatever it guarded is now junk. */
-    @Synchronized
-    override fun wasRecreated(name: String): Boolean = name in recreated
+    override fun wasRecreated(name: String): Boolean = lock.withLock { name in recreated }
 
     /**
      * Never creates a key: minting one on a decryption path would make existing data unreadable.
      */
-    @Synchronized
-    override fun get(name: String): ByteArray? {
+    override fun get(name: String): ByteArray? = lock.withLock { getLocked(name) }
+
+    private fun getLocked(name: String): ByteArray? {
         cache[name]?.let { return it }
         val file = keyFile(name)
         if (!file.exists()) return null
@@ -58,11 +63,9 @@ class FileWrappedKeyRepository(
             ?.also { cache[name] = it }
     }
 
-    @Synchronized
-    override fun exists(name: String): Boolean = get(name) != null
+    override fun exists(name: String): Boolean = lock.withLock { get(name) != null }
 
-    @Synchronized
-    override fun store(name: String, key: ByteArray) {
+    override fun store(name: String, key: ByteArray) = lock.withLock {
         val file = keyFile(name)
         file.parentFile?.mkdirs()
         file.writeBytes(cipher.encrypt(key))

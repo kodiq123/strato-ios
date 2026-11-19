@@ -44,6 +44,9 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         CADisableMinimumFrameDurationOnPhone: true
+        # Downloads go to Documents; these show it in the Files app (On My iPhone › Strato).
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
         ITSAppUsesNonExemptEncryption: false
         LSApplicationQueriesSchemes:
           - tg

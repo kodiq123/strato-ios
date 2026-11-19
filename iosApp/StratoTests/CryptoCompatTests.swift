@@ -13,6 +13,13 @@ final class CryptoCompatTests: XCTestCase {
         XCTAssertEqual(failures, [], failures.joined(separator: "\n"))
     }
 
+    /// File, streams, gzip and SHA-256 over Foundation/POSIX/zlib/CommonCrypto, held to java.io.
+    func testIoLayerMatchesJavaIo() {
+        IosCryptoBridge.shared.aesGcm = CryptoKitAesGcm()
+        let failures = IoSelfTest.shared.run(scratch: File(pathname: NSTemporaryDirectory()))
+        XCTAssertEqual(failures, [], failures.joined(separator: "\n"))
+    }
+
     func testTdlibIsLinked() {
         let raw = TdJsonBridge().execute(request: #"{"@type":"getOption","name":"version"}"#)
         XCTAssertNotNil(raw)
