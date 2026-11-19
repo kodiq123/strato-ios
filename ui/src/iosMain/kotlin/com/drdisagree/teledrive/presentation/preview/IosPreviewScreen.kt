@@ -8,6 +8,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -68,6 +69,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
@@ -259,7 +261,7 @@ fun IosPreviewScreen(
                         viewModel = viewModel,
                         file = pageFile,
                         snackbarHostState = snackbarHostState,
-                        onPlayerControlsVisibilityChange = { playerChromeVisible = it }
+                        onToggleChrome = { playerChromeVisible = !playerChromeVisible }
                     )
                 }
             }
@@ -450,7 +452,7 @@ private fun PreviewPane(
     viewModel: PreviewViewModel,
     file: DriveFile,
     snackbarHostState: SnackbarHostState,
-    onPlayerControlsVisibilityChange: (Boolean) -> Unit
+    onToggleChrome: () -> Unit
 ) {
     val content by viewModel.contentFor(file).collectAsState()
     val urlOpener = LocalUrlOpener.current
@@ -520,7 +522,7 @@ private fun PreviewPane(
                     AsyncImage(
                         model = current.model,
                         contentDescription = file.name,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { onToggleChrome() } },
                         contentScale = ContentScale.Fit,
                         onState = { state ->
                             if (state is AsyncImagePainter.State.Error) undecodable = true
@@ -535,10 +537,11 @@ private fun PreviewPane(
                 mimeType = file.mimeType,
                 localPath = current.path,
                 source = null,
-                onDownload = null
+                onDownload = null,
+                onTap = onToggleChrome
             )
 
-            is PreviewContent.Pdf -> InlinePdf(path = current.path)
+            is PreviewContent.Pdf -> InlinePdf(path = current.path, onTap = onToggleChrome)
 
             is PreviewContent.StreamedMedia -> {
                 val telegramClient = koinInject<TelegramClient>()
@@ -566,7 +569,8 @@ private fun PreviewPane(
                             )
                         }
                     },
-                    onDownload = { viewModel.download(file) }
+                    onDownload = { viewModel.download(file) },
+                    onTap = onToggleChrome
                 )
             }
 

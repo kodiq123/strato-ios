@@ -25,8 +25,10 @@ import platform.UIKit.systemGroupedBackgroundColor
  */
 @OptIn(ExperimentalForeignApi::class)
 @Composable
-internal fun InlinePdf(path: String, modifier: Modifier = Modifier) {
+internal fun InlinePdf(path: String, onTap: () -> Unit, modifier: Modifier = Modifier) {
     val document = remember(path) { PDFDocument(uRL = NSURL.fileURLWithPath(path)) }
+    val tapRelay = remember { TapRelay(onTap) }
+    tapRelay.onTap = onTap
     if (document == null) {
         EmptyState(
             icon = Icons.Filled.PictureAsPdf,
@@ -43,6 +45,7 @@ internal fun InlinePdf(path: String, modifier: Modifier = Modifier) {
                 autoScales = true
                 backgroundColor = UIColor.systemGroupedBackgroundColor
                 this.document = document
+                tapRelay.attachTo(this)
             }
         },
         modifier = modifier.fillMaxSize(),

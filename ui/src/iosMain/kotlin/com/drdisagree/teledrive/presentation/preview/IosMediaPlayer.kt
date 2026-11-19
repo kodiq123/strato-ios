@@ -76,9 +76,13 @@ internal fun IosMediaPlayer(
     localPath: String?,
     source: (() -> MediaByteSource)?,
     onDownload: (() -> Unit)?,
+    onTap: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val session = remember(key) { PlayerSession(fileName, mimeType, localPath, source) }
+    // The player shows and hides its own controls on a tap; the preview bars follow the same tap.
+    val tapRelay = remember { TapRelay(onTap) }
+    tapRelay.onTap = onTap
     DisposableEffect(session) {
         onDispose { session.release() }
     }
@@ -104,6 +108,7 @@ internal fun IosMediaPlayer(
             factory = {
                 AVPlayerViewController().apply {
                     player = session.player
+                    tapRelay.attachTo(view)
                     session.start()
                 }
             },
