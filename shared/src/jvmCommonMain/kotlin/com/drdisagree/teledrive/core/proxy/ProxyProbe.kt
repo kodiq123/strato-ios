@@ -15,11 +15,11 @@ import java.net.SocketTimeoutException
 import kotlin.random.Random
 
 /** Runs without TDLib, which refuses every request until it has API credentials. */
-class ProxyProbe(
+actual class ProxyProbe(
     private val dispatchers: DispatcherProvider
 ) {
 
-    suspend fun probe(proxy: TelegramProxy): ProxyProbeResult = withContext(dispatchers.io) {
+    actual suspend fun probe(proxy: TelegramProxy): ProxyProbeResult = withContext(dispatchers.io) {
         runCatching {
             Socket().use { socket ->
                 socket.connect(InetSocketAddress(proxy.host, proxy.port), CONNECT_TIMEOUT_MS)

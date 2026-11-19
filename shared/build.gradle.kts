@@ -10,6 +10,7 @@ kotlin {
     jvmToolchain(17)
     compilerOptions {
         freeCompilerArgs.add("-Xexpect-actual-classes")
+        optIn.add("kotlin.uuid.ExperimentalUuidApi")
     }
 
     android {
