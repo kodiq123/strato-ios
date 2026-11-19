@@ -56,6 +56,17 @@ jobs:
           brew install xcodegen
           xcodegen generate
 
+      # Xcode's pre-build script runs ./gradlew; fetch the wrapper's distribution first, with
+      # retries, so a DNS hiccup on the runner does not fail the whole build.
+      - name: Warm up Gradle
+        run: |
+          for attempt in 1 2 3; do
+            ./gradlew --version --console=plain && exit 0
+            echo "Gradle download failed (attempt $attempt), retrying..."
+            sleep 20
+          done
+          exit 1
+
       - name: Build app (unsigned)
         run: |
           set -o pipefail
