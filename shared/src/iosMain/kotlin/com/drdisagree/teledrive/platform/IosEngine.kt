@@ -72,9 +72,16 @@ object IosEngine {
 
     private var koin: Koin? = null
 
-    fun start(transport: TdJsonTransport, secureStore: SecureStore): Koin {
+    /** [extraModules] lets the presentation layer add its view models and platform services. */
+    fun start(
+        transport: TdJsonTransport,
+        secureStore: SecureStore,
+        extraModules: List<Module> = emptyList()
+    ): Koin {
         koin?.let { return it }
-        val started = startKoin { modules(iosModule(transport, secureStore)) }.koin
+        val started = startKoin {
+            modules(listOf(iosModule(transport, secureStore)) + extraModules)
+        }.koin
         koin = started
         return started
     }
@@ -121,7 +128,7 @@ object IosEngine {
         single<PendingShare> { IosPendingShare() }
         single<LocalCopyDeleter> { IosLocalCopyDeleter() }
         single<MediaMetadataExtractor> { IosMediaMetadataExtractor() }
-        single<ThumbnailStore> { NoopThumbnailStore() }
+        singleOf(::IosThumbnailStore) { bind<ThumbnailStore>() }
         single<ThumbnailMemoryCache> { NoopThumbnailMemoryCache() }
         singleOf(::CountingBackupSessionTracker) { bind<BackupSessionTracker>() }
         single<TransferScheduler> { IosTransferScheduler(get(), get()) }

@@ -27,8 +27,10 @@ TDLib, Apache-2.0). Gera um **IPA sem assinatura** para sideload com Apple ID gr
 - A compilação cruzada de klibs Apple está ativa, então o Windows compila o Kotlin de iOS. Só o link
   final e o IPA exigem o macOS do CI.
 - Verificações locais:
-  `./gradlew :shared:desktopTest :shared:compileKotlinIosArm64 :ui:compileKotlinIosArm64 :desktop:compileKotlin`
-  (201 testes verdes). O módulo Android só compila com o Android SDK instalado.
+  `./gradlew :shared:desktopTest :ui:desktopTest :shared:compileKotlinIosArm64 :ui:compileKotlinIosArm64 :desktop:compileKotlin`
+  (219 testes verdes: 202 no shared e 17 na ui). O módulo Android só compila com o Android SDK instalado.
+- Se o caminho do projeto tiver acento (ex.: `C:\Users\João`), o plugin Android recusa o build: passe
+  `"-Pandroid.overridePathCheck=true"` (com aspas no PowerShell, que senão quebra o argumento no ponto).
 - O job `simulator-tests` costuma ser cancelado por falta de máquina arm64. Ele não bloqueia o IPA.
 
 ## Arquitetura no iOS
@@ -45,24 +47,38 @@ TDLib, Apache-2.0). Gera um **IPA sem assinatura** para sideload com Apple ID gr
   - `IoSelfTest` confere a camada de I/O do iOS contra o java.io.
 - O grafo Koin do iOS está em `shared/src/iosMain/.../platform/IosEngine.kt`, com as implementações em
   `IosPlatform.kt`.
-- A tela atual é de teste: `ui/src/iosMain/.../presentation/probe/DriveProbeScreen.kt`.
+- A interface inteira (`ui/src/commonMain`) roda no iOS desde a etapa 4. O que muda por plataforma:
+  - `ui/src/jvmCommonMain` guarda só o que é da JVM: zxing (`QrCode.jvm.kt`), zip4j (`ZipListing.jvm.kt`)
+    e as datas/números via `java.text` (`PlatformFormat.jvm.kt`), idênticos ao TeleDrive original;
+  - no iOS: QR pelo CoreImage, listagem de ZIP pelo `ZipCentralDirectory` (comum, testado contra o
+    zip4j), datas pelo `NSDateFormatter`, miniaturas pelo UIKit (`IosThumbnailStore`), prévia em
+    `IosPreviewScreen` (vídeo, áudio e PDF abrem no QuickLook);
+  - `ui/src/iosMain/.../presentation/MainViewController.kt` é a entrada: sobe o Koin (`iosUiModule`),
+    as tarefas de início do desktop e o Coil; `platform/IosPlatformProviders.kt` fornece seletores,
+    compartilhar, abrir URL etc.;
+  - idioma escolhido no app: os textos do Compose seguem `Locale.current`, que no iOS vem de
+    `AppleLanguages`; o app grava essa chave, então a troca vale a partir da próxima abertura.
+- `UpdateChecker` (só JVM consulta as releases do TeleDrive original) e `ApkIconExtractor` viraram
+  `expect`; no iOS não há checagem de atualização nem ícone de APK.
 
 ## Etapas
 | Etapa | Status |
 |---|---|
 | 1 — Base iOS + pipeline do IPA | ✅ release v0.1.0-etapa1 |
-| 2 — Login no Telegram + leitura dos drives | ✅ testada no iPhone, release v0.2.0-etapa2 (a descrição ainda diz "não testado"; atualizar com o OK do usuário) |
-| 3 — Motor (sync, download/descriptografia, envio, restaurar chave) | 🟡 release v0.3.0-etapa3, **falta o teste no iPhone** |
-| 4 — Interface completa (portar ui/jvmCommonMain para commonMain; QR sem zxing; prévia de ZIP sem zip4j; miniaturas; textos traduzidos) | pendente |
+| 2 — Login no Telegram + leitura dos drives | ✅ testada no iPhone, release v0.2.0-etapa2 |
+| 3 — Motor (sync, download/descriptografia, envio, restaurar chave) | ✅ testada no iPhone, release v0.3.0-etapa3 |
+| 4 — Interface completa (portar ui/jvmCommonMain para commonMain; QR sem zxing; prévia de ZIP sem zip4j; miniaturas; textos traduzidos) | 🟡 IPA v0.4.0 no CI, **falta o teste no iPhone** e a release v0.4.0-etapa4 |
 | 5 — Recursos do iOS (AVPlayer, backup da galeria de Fotos, BGTaskScheduler, NWPathMonitor, Face ID, extensão de compartilhamento, ProxyProbe) | pendente |
 
 ## Próximo passo
-O usuário testa a v0.3.0 no iPhone:
-1. Autoteste de compatibilidade.
-2. Escolher um drive e indexar.
-3. Baixar um arquivo e conferir no app Arquivos.
-4. Enviar um arquivo e conferir no Android.
-5. Restaurar a chave e baixar um arquivo 🔒.
+Quando o build do commit da etapa 4 terminar: criar a release `v0.4.0-etapa4` (pre-release, IPA anexado,
+status "não testado"). Depois o usuário testa no iPhone:
+1. O app abre direto na interface completa, com o login já feito (sessão da etapa 3).
+2. Navegar pelos drives e pastas; miniaturas de fotos aparecem.
+3. Abrir prévia de imagem, texto, ZIP (lista de arquivos) e PDF/vídeo (botão Abrir → QuickLook).
+4. Baixar, enviar (botão + / app Arquivos), compartilhar, renomear, lixeira.
+5. Configurações: trocar o idioma e reabrir o app; datas e textos no idioma escolhido.
+6. Sair da conta e entrar de novo pelo QR (o QR agora é desenhado pelo CoreImage).
 
-Se tudo funcionar, marcar a etapa 3 como testada e só começar a etapa 4 quando o usuário pedir. Se
-algo falhar, depurar a partir do erro exato mostrado na tela.
+Se algo falhar, depurar a partir do erro exato mostrado na tela. A etapa 5 só começa quando o usuário
+pedir.

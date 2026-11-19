@@ -1,0 +1,42 @@
+package com.drdisagree.teledrive.presentation.components
+
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Canvas
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Paint
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
+import com.google.zxing.qrcode.QRCodeWriter
+import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
+
+internal actual fun encodeQr(content: String): ImageBitmap? = runCatching {
+    val hints = mapOf(
+        EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.M,
+        EncodeHintType.MARGIN to QR_MARGIN
+    )
+    val matrix = QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, QR_SIZE, QR_SIZE, hints)
+    val image = ImageBitmap(matrix.width, matrix.height)
+    val canvas = Canvas(image)
+    val white = Paint().apply { color = Color.White }
+    val black = Paint().apply { color = Color.Black }
+    canvas.drawRect(0f, 0f, matrix.width.toFloat(), matrix.height.toFloat(), white)
+    val module = Size(1f, 1f)
+    for (y in 0 until matrix.height) {
+        for (x in 0 until matrix.width) {
+            if (matrix.get(x, y)) {
+                canvas.drawRect(
+                    x.toFloat(),
+                    y.toFloat(),
+                    x + module.width,
+                    y + module.height,
+                    black
+                )
+            }
+        }
+    }
+    image
+}.getOrNull()
+
+private const val QR_SIZE = 512
+private const val QR_MARGIN = 1

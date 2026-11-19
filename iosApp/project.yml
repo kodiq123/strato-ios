@@ -30,6 +30,16 @@ targets:
       path: Strato/Info.plist
       properties:
         CFBundleDisplayName: Strato
+        # The languages the Compose resources ship; also enables Settings › Strato › Language.
+        CFBundleDevelopmentRegion: en
+        CFBundleLocalizations:
+          - en
+          - pt-BR
+          - ru
+          - zh-Hans
+          - es
+          - id
+          - it
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}

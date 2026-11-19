@@ -236,13 +236,6 @@ class IosMediaMetadataExtractor : MediaMetadataExtractor {
 }
 
 /** No thumbnails until the gallery UI exists (stage 4); every caller handles null. */
-class NoopThumbnailStore : ThumbnailStore {
-    override suspend fun thumbnailBytes(fileId: String): ByteArray? = null
-    override suspend fun uploadThumbnailFile(fileId: String): File? = null
-    override suspend fun storeFromDecrypted(fileId: String, plain: File) = Unit
-    override suspend fun storeFromStream(fileId: String, parts: List<MediaPart>, encrypted: Boolean) = Unit
-}
-
 class NoopThumbnailMemoryCache : ThumbnailMemoryCache {
     override fun remove(fileId: String) = Unit
     override fun clear() = Unit
